@@ -17240,7 +17240,7 @@ function applyFITData(fitLaps, fitRecords, fitSession){
 // ⚠️ Replace with your own Strava Client ID from https://www.strava.com/settings/api
 const STRAVA_CLIENT_ID     = '212163';
 const STRAVA_CLIENT_SECRET = 'ec7a553c236461496ca7d39d9fc81edf32d35b3d';
-const STRAVA_REDIRECT      = 'https://wattlab.netlify.app/';
+const STRAVA_REDIRECT      = 'https://rrichh.github.io/wattlab/';
 const STRAVA_SCOPE         = 'activity:read_all';
 // ⚡ Google Apps Script sync — URL del tuo web app (script.google.com → Pubblica)
 let GAS_URL       = localStorage.getItem('gasUrl') || '';
@@ -17571,7 +17571,7 @@ function reAuthStrava(){
   localStorage.setItem('stravaClientId',     clientId);
   localStorage.setItem('stravaClientSecret', clientSecret);
   localStorage.setItem('stravaTokenExpires', '0'); // force refresh on next load
-  const redirect = 'https://wattlab.netlify.app/';
+  const redirect = 'https://rrichh.github.io/wattlab/';
   const url = `https://www.strava.com/oauth/authorize?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirect)}&response_type=code&scope=activity:read_all&state=wattlab&approval_prompt=force`;
   window.location.href = url;
 }
