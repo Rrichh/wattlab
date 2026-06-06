@@ -15671,7 +15671,8 @@ function renderPowerCurve(){
   const toVal = w => wkgMode ? Math.round((w/WEIGHT)*100)/100 : w;
   const vals = validD.map(d=>toVal(curve[d]));
 
-  const W=362,H=190, pl=6,pr=6,pt=28,pb=32;
+  // viewBox SVG è 362×120: usa stesse dimensioni per disegnare dentro al viewport
+  const W=362,H=120, pl=6,pr=6,pt=8,pb=18;
   const cw=W-pl-pr, ch=H-pt-pb;
   const maxV=Math.max(...vals)*1.03, minV=Math.min(...vals)*.9;
   const xFor=i=>pl+i*(cw/(validD.length-1));
