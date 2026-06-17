@@ -10963,6 +10963,8 @@ function _apiDefaultBase(){
     const proto = location.protocol;
     if(proto === 'https:' || proto === 'http:'){
       const host = location.hostname;
+      // App pubblicata su GitHub Pages → server WattLab su Render
+      if(host === 'rrichh.github.io') return 'https://wattlab-api.onrender.com';
       if(host !== 'localhost' && host !== '127.0.0.1' && host !== ''){
         return ''; // same-origin: '' + '/api/...' = relative URL
       }
