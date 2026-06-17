@@ -11138,11 +11138,35 @@ async function _cloudBackup(){
   try{
     const payload = _collectLocalData();
     const deviceId = (()=>{ try{ let d=localStorage.getItem('wl_device_id'); if(!d){ d=(crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2)); localStorage.setItem('wl_device_id',d); } return d; }catch(_){ return null; } })();
-    const r = await apiPost('/sync/snapshot', { payload, deviceId });
+    const r = await _api('/sync/snapshot', { method:'POST', body:{ payload, deviceId }, timeout: 60000 });
     return { ok: true, size: r.size };
   } catch(err){
     return { ok: false, error: err.message || 'sync_failed', status: err.status };
   }
+}
+// Backup manuale con esito visibile (pulsante "Backup ora")
+async function _cloudBackupNow(){
+  try{ showToast('Backup in corso… (può metterci ~40s se il server dormiva)', 2200); }catch(_){}
+  const r = await _cloudBackup();
+  if(r.ok){ _cloudLastBackup = Date.now(); try{ showToast('Backup salvato sul cloud ✓ ('+Math.round((r.size||0)/1024)+' KB)', 3000); }catch(_){} }
+  else if(r.status === 401){ try{ showToast('Devi essere connesso (fai login) per il backup', 3000); }catch(_){} }
+  else{ try{ showToast('Backup non riuscito: '+(r.error||'server non raggiungibile'), 3200); }catch(_){} }
+}
+// Ripristino manuale forzato dal cloud (pulsante "Ripristina")
+async function _cloudRestoreNow(){
+  try{ if(!confirm('Ripristinare i dati di QUESTO account dal cloud? Sostituirà i dati attuali su questo dispositivo.')) return; }catch(_){}
+  try{ showToast('Ripristino in corso…', 1800); }catch(_){}
+  try{
+    const r = await _api('/sync/latest', { timeout: 60000 });
+    if(!r || !r.snapshot || !r.snapshot.payload){ try{ showToast('Nessun backup sul cloud per questo account. Fai prima "Backup ora" dall\'altro dispositivo.', 3800); }catch(_){} return; }
+    const data = r.snapshot.payload;
+    const DENY = { 'wl_auth_hash':1,'wl_auth_salt':1,'wl_api_url':1,'wl_at':1,'wl_rt':1,'wl_coach_summary':1 };
+    let n = 0;
+    Object.keys(data).forEach(k => { if(DENY[k]) return; try{ localStorage.setItem(k, typeof data[k]==='string'?data[k]:JSON.stringify(data[k])); n++; }catch(_){} });
+    try{ _ridesCache = null; }catch(_){}
+    try{ showToast('Ripristinati '+n+' elementi dal cloud ✓ — ricarico…', 2600); }catch(_){}
+    setTimeout(()=>location.reload(), 1500);
+  }catch(err){ try{ showToast('Ripristino non riuscito: '+((err&&err.message)||'server non raggiungibile'), 3200); }catch(_){} }
 }
 // ═══ BACKUP CLOUD AUTOMATICO (sempre attivo se loggato sul server) ═══
 let _cloudAutoBackupTimer = null;
@@ -11152,7 +11176,7 @@ let _cloudLastBackup = 0;
 
 // Verifica (cached) se l'utente ha una sessione server valida
 async function _cloudCheckLogged(){
-  try{ const me = await apiGet('/auth/me'); _cloudIsLogged = !!(me && me.id); }
+  try{ const me = await _api('/auth/me', { timeout: 30000 }); _cloudIsLogged = !!(me && me.id); }
   catch(_){ _cloudIsLogged = false; }
   return _cloudIsLogged;
 }
@@ -11191,8 +11215,11 @@ function _startCloudAutoBackup(){
 // ma l'account ha un backup cloud, lo recupera in silenzio. Chiamato dopo login.
 async function _cloudAutoRestoreIfEmpty(){
   try{
-    const r = await apiGet('/sync/latest', { timeout: 60000 });
-    if(!r || !r.snapshot || !r.snapshot.payload) return;
+    const r = await _api('/sync/latest', { timeout: 60000 });
+    if(!r || !r.snapshot || !r.snapshot.payload){
+      try{ showToast('Nessun backup sul cloud per questo account. Fai prima un backup dall\'altro dispositivo.', 3600); }catch(_){}
+      return;
+    }
     const data = r.snapshot.payload;
     const localRides = (typeof getSavedRides==='function') ? getSavedRides().length : 0;
     // Mai sovrascrivere: credenziali locali, URL server, token di sessione di questo device
@@ -25188,6 +25215,10 @@ function _renderSubSecurity(body){
             <div style="font-size:11px;color:var(--muted);margin-top:2px;line-height:1.4">Automatico quando sei connesso. Su un nuovo dispositivo i dati si ripristinano da soli.</div>
           </div>
           <div id="_cloudBackupStatus" style="font-size:10px;font-weight:700;color:var(--muted);background:var(--surface-2);border:1px solid var(--row-divider);padding:4px 9px;border-radius:50px;letter-spacing:.05em;text-transform:uppercase;flex-shrink:0">AUTO</div>
+        </div>
+        <div style="padding:0 16px 14px;display:flex;gap:8px">
+          <button onclick="_cloudBackupNow()" class="gc" style="flex:1">${t('sync_backup_now')||'Backup ora'}</button>
+          <button onclick="_cloudRestoreNow()" class="gc" style="flex:1">${t('sync_restore_now')||'Ripristina'}</button>
         </div>
         <div id="devicesHeaderRow" style="display:none;padding:10px 16px 6px;align-items:center;justify-content:space-between;border-top:1px solid var(--row-divider)">
           <span class="sec-lbl">${t('sync_devices')||'Dispositivi connessi'}</span>
