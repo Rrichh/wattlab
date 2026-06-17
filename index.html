@@ -11194,6 +11194,33 @@ async function _cloudRestoreNow(){
   try{ alert('RIPRISTINO OK ✓\n\nRipristinati '+nActs+' attivita, Strava: '+(hasStrava?'si':'no')+'.\nRicarico la pagina.'); }catch(_){}
   setTimeout(()=>location.reload(), 500);
 }
+// Diagnostica: mostra lo stato esatto (locale + cloud) per capire i problemi di sync
+async function _cloudDiag(){
+  const L = [];
+  const push = (s)=>L.push(s);
+  try{ push('URL: '+location.href); }catch(_){}
+  try{ push('API: '+(_apiBase()||'(same-origin)')); }catch(_){}
+  try{ push('email: '+(localStorage.getItem('wl_auth_email')||'-')); }catch(_){}
+  try{ push('sessione: '+(localStorage.getItem('wl_auth_session')||'-')+' | token salvato: '+(localStorage.getItem('wl_at')?'SI':'NO')); }catch(_){}
+  try{ push('attivita in memoria (cache): '+((typeof getSavedRides==='function')?getSavedRides().length:'?')); }catch(_){}
+  try{ const ls=localStorage.getItem('savedRides')||''; let n=0; try{n=JSON.parse(ls||'[]').length;}catch(_){}; push('attivita in localStorage: '+n+' ('+Math.round(ls.length/1024)+' KB)'); }catch(_){}
+  try{ const idb=await getIndexedDBRides(); push('attivita in IndexedDB: '+(idb?idb.length:'-')); }catch(_){}
+  try{ const me=await _api('/auth/me',{timeout:30000}); push('server login: OK ('+(me&&me.email)+')'); }
+  catch(e){ push('server login: ERRORE '+((e&&e.status)||(e&&e.message)||'')); }
+  try{
+    const r=await _api('/sync/latest',{timeout:60000});
+    const p=(r&&r.snapshot&&r.snapshot.payload)||null;
+    if(!p){ push('CLOUD: nessun backup'); }
+    else{
+      let n=0; try{ const sr=p.savedRides; const a=typeof sr==='string'?JSON.parse(sr):sr; n=Array.isArray(a)?a.length:0; }catch(_){}
+      push('CLOUD attivita: '+n+' | chiavi: '+Object.keys(p).length+' | strava: '+(!!p.stravaToken)+' | ftp: '+(p.ftp||'-'));
+      try{ push('CLOUD aggiornato: '+(r.snapshot.createdAt||'-')+' | size: '+Math.round((r.snapshot.size||0)/1024)+' KB'); }catch(_){}
+    }
+  }catch(e){ push('CLOUD: ERRORE '+((e&&e.status)||(e&&e.message)||'')); }
+  const txt = L.join('\n');
+  try{ if(navigator.clipboard) navigator.clipboard.writeText(txt); }catch(_){}
+  try{ prompt('DIAGNOSTICA — copia tutto e mandamelo:', txt); }catch(_){ try{ alert(txt); }catch(__){} }
+}
 // ═══ BACKUP CLOUD AUTOMATICO (sempre attivo se loggato sul server) ═══
 let _cloudAutoBackupTimer = null;
 let _cloudIsLogged = null;     // cache stato login server (null=sconosciuto)
@@ -25242,6 +25269,7 @@ function _renderSubSecurity(body){
         <div style="padding:0 16px 14px;display:flex;gap:8px">
           <button onclick="_cloudBackupNow()" class="gc" style="flex:1">${t('sync_backup_now')||'Backup ora'}</button>
           <button onclick="_cloudRestoreNow()" class="gc" style="flex:1">${t('sync_restore_now')||'Ripristina'}</button>
+          <button onclick="_cloudDiag()" class="gc" style="flex:1">Diagnostica</button>
         </div>
         <div id="devicesHeaderRow" style="display:none;padding:10px 16px 6px;align-items:center;justify-content:space-between;border-top:1px solid var(--row-divider)">
           <span class="sec-lbl">${t('sync_devices')||'Dispositivi connessi'}</span>
