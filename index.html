@@ -11113,16 +11113,19 @@ function _ridesLight(){
 }
 function _collectLocalData(){
   const out = {};
-  // Mai inviare: credenziali locali, URL server, token di sessione di QUESTO device
-  const DENY = { 'wl_auth_hash':1,'wl_auth_salt':1,'wl_api_url':1,'wl_at':1,'wl_rt':1 };
+  // Si salva TUTTO il localStorage (FTP, peso, zone, lap preferiti, codice atleta,
+  // impostazioni, Strava, ecc.) TRANNE: credenziali/sessione locali di questo device,
+  // e le copie/metadati delle attività (gestite a parte sotto).
+  const DENY = {
+    'wl_auth_hash':1,'wl_auth_salt':1,'wl_api_url':1,'wl_at':1,'wl_rt':1,'wl_device_id':1,
+    'wl_coach_summary':1,'savedRides':1,'savedRides_backup':1,'savedRides_ids':1,'wattlab_meta':1
+  };
   try{
     for(let i=0;i<localStorage.length;i++){
       const k = localStorage.key(i);
       if(!k || DENY[k]) continue;
-      // Impostazioni (wl_*) + connessione Strava (strava*) → vanno nel backup
-      if(!(k.startsWith('wl_') || k.startsWith('strava'))) continue;
       const v = localStorage.getItem(k);
-      if(v && v.length < 1024*1024) out[k] = v;
+      if(v != null && v.length < 1024*1024) out[k] = v;
     }
   }catch(_){}
   // Attività: complete se sotto ~4MB, altrimenti versione leggera (senza stream pesanti)
