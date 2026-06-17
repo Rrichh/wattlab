@@ -11404,6 +11404,20 @@ function _setPhoneVisible(visible){
   const p = document.querySelector('.phone');
   if(p) p.style.display = visible ? '' : 'none';
 }
+// ── Badge versione (diagnostica cache): visibile in basso a sinistra ──
+const WL_BUILD = '17giu #6';
+try{
+  (function(){
+    function add(){
+      if(document.getElementById('wlBuildBadge')) return;
+      var b=document.createElement('div'); b.id='wlBuildBadge';
+      b.textContent='build '+WL_BUILD;
+      b.style.cssText='position:fixed;left:6px;bottom:6px;z-index:2147483647;font:700 9px monospace;color:#9aa;background:rgba(0,0,0,.6);padding:2px 6px;border-radius:6px;pointer-events:none';
+      (document.body||document.documentElement).appendChild(b);
+    }
+    if(document.readyState!=='loading') add(); else document.addEventListener('DOMContentLoaded', add);
+  })();
+}catch(_){}
 function _authShowGate(){
   _detachToBody('authGate');
   const gate = document.getElementById('authGate');
