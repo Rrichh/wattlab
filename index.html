@@ -11231,44 +11231,41 @@ function _startCloudAutoBackup(){
   });
 }
 
-// Ripristino automatico su dispositivo nuovo: se il device è vuoto (0 attività)
-// ma l'account ha un backup cloud, lo recupera in silenzio. Chiamato dopo login.
+// Chiamato dopo il login: l'accesso all'account RICOSTRUISCE tutto dal cloud.
+// - se il cloud è più completo (o il device è vuoto) → ripristina TUTTO l'account
+// - se questo device ha più attività del cloud → NON sovrascrive, aggiorna il cloud
 async function _cloudAutoRestoreIfEmpty(){
   try{
     const r = await _api('/sync/latest', { timeout: 60000 });
     if(!r || !r.snapshot || !r.snapshot.payload){
-      try{ showToast('Nessun backup sul cloud per questo account. Fai prima un backup dall\'altro dispositivo.', 3600); }catch(_){}
+      try{ showToast('Nessun backup sul cloud per questo account', 3000); }catch(_){}
       return;
     }
     const data = r.snapshot.payload;
-    const localRides = (typeof getSavedRides==='function') ? getSavedRides().length : 0;
-    // Mai sovrascrivere: credenziali locali, URL server, token di sessione di questo device
-    const DENY = { 'wl_auth_hash':1,'wl_auth_salt':1,'wl_api_url':1,'wl_at':1,'wl_rt':1,'wl_coach_summary':1 };
-
-    if(localRides === 0){
-      // Dispositivo vuoto → ripristino COMPLETO (impostazioni + Strava + attività)
-      let restored = 0;
-      Object.keys(data).forEach(k => {
-        if(DENY[k]) return;
-        try{ localStorage.setItem(k, typeof data[k]==='string' ? data[k] : JSON.stringify(data[k])); restored++; }catch(_){}
-      });
-      if(restored > 0){
-        try{ _ridesCache = null; }catch(_){}
-        try{ showToast('Dati ripristinati dal cloud ✓', 2600); }catch(_){}
-        setTimeout(()=>location.reload(), 1400);
-      }
-    } else {
-      // Dispositivo con dati → collega almeno lo Strava di QUESTO account (se diverso)
-      const cloudTok = data['stravaToken'];
-      if(typeof cloudTok === 'string' && cloudTok && cloudTok !== localStorage.getItem('stravaToken')){
-        Object.keys(data).forEach(k => {
-          if(k.startsWith('strava')){ try{ localStorage.setItem(k, typeof data[k]==='string'?data[k]:JSON.stringify(data[k])); }catch(_){} }
-        });
-        try{ showToast('Strava dell\'account collegato ✓', 2400); }catch(_){}
-        setTimeout(()=>location.reload(), 1400);
-      }
+    // Conta attività nel cloud vs in locale
+    let cloudActs = 0;
+    try{ const sr = data['savedRides']; const a = typeof sr==='string'?JSON.parse(sr):sr; cloudActs = Array.isArray(a)?a.length:0; }catch(_){}
+    const localActs = (typeof getSavedRides==='function') ? getSavedRides().length : 0;
+    // Sicurezza: se QUESTO dispositivo ha più dati del cloud, non sovrascrivere
+    // (il cloud è vecchio) → aggiorna il cloud con i dati di questo dispositivo.
+    if(localActs > cloudActs){
+      try{ showToast('Questo dispositivo è più aggiornato — aggiorno il cloud', 2800); }catch(_){}
+      setTimeout(()=>{ try{ _cloudBackupSilent(); }catch(_){} }, 1500);
+      return;
     }
-  }catch(_){ /* offline o nessun backup: ignora */ }
+    // Altrimenti → ripristina TUTTO l'account dal cloud
+    const DENY = { 'wl_auth_hash':1,'wl_auth_salt':1,'wl_api_url':1,'wl_at':1,'wl_rt':1,'wl_coach_summary':1,'wl_device_id':1 };
+    let restored = 0;
+    Object.keys(data).forEach(k => {
+      if(DENY[k]) return;
+      try{ localStorage.setItem(k, typeof data[k]==='string' ? data[k] : JSON.stringify(data[k])); restored++; }catch(_){}
+    });
+    if(restored > 0){
+      try{ _ridesCache = null; }catch(_){}
+      try{ showToast('Account ripristinato dal cloud ✓ ('+cloudActs+' attività)', 2800); }catch(_){}
+      setTimeout(()=>location.reload(), 1400);
+    }
+  }catch(_){ /* offline: ignora */ }
 }
 // Invia al server il codice atleta + nome (per la dashboard admin). Fire-and-forget.
 async function _syncProfileToServer(){
