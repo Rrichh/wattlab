@@ -1585,6 +1585,13 @@ var TRANSLATIONS = {
     coach_code_hint:'Condividi questo codice con il tuo allenatore',
     coach_invalid_code:'Formato codice non valido (es. ABC-1234-XY)',
     sync_cloud_backup:'Backup & Sincronizzazione',
+    coach_loading:'Caricamento allenamenti…',
+    coach_no_data:'Questo atleta non ha ancora sincronizzato i suoi allenamenti sul cloud.',
+    coach_not_found_srv:'Atleta non trovato sul server. Deve aver fatto accesso almeno una volta col suo account.',
+    coach_load_err:'Impossibile caricare i dati. Server non raggiungibile, riprova tra poco.',
+    coach_activities:'Att.',
+    coach_time:'Tempo',
+    coach_activity:'Allenamento',
     coach_athlete_exists:'Questo atleta è già nella lista',
     nessun_evento:'Nessun evento programmato',
     // ── Pg5 sub-pages (categorie) ──
@@ -11072,6 +11079,23 @@ const apiPut  = (p, body)  => _api(p, { method:'PUT', body });
 const apiDel  = (p)        => _api(p, { method:'DELETE' });
 
 /* ═══ CLOUD SYNC: backup/restore localStorage via server ═══════════ */
+// Riassunto leggero degli allenamenti (senza gli stream pesanti) per la
+// condivisione con l'allenatore. Va incluso nello snapshot cloud.
+function _coachBuildSummary(){
+  try{
+    const rides = (typeof getSavedRides==='function') ? getSavedRides() : [];
+    return rides.slice(0,300).map(r=>({
+      id: r.id,
+      ts: r.activityTs || (r.date ? new Date(r.date).getTime() : null),
+      date: r.date || null,
+      name: r.name || '',
+      distance: r.distance || 0,
+      duration: r.duration || 0,
+      tss: (r.session && r.session.tss) ? Math.round(r.session.tss) : null,
+      np:  (r.session && (r.session.np || r.session.normalizedPower)) || null,
+    }));
+  }catch(_){ return []; }
+}
 function _collectLocalData(){
   const out = {};
   try{
@@ -11084,6 +11108,8 @@ function _collectLocalData(){
       }
     }
   }catch(_){}
+  // Riassunto allenamenti per l'allenatore (entra nello snapshot perché wl_*)
+  try{ out['wl_coach_summary'] = JSON.stringify(_coachBuildSummary()); }catch(_){}
   return out;
 }
 async function _cloudBackup(){
@@ -28861,11 +28887,10 @@ function _coachOpenAthleteView(name,code){
           <div style="font-size:11px;color:var(--muted);font-family:var(--mono);letter-spacing:.12em;margin-top:3px">${sc}</div>
         </div>
       </div>
-      <div style="padding:13px 14px;border-bottom:1px solid var(--row-divider)">
-        <div class="sec-lbl" style="margin-bottom:4px">${t('coach_athlete_profile')||'Profilo atleta'}</div>
-        <div style="font-size:11px;color:var(--muted);line-height:1.55">${t('coach_server_note')||'La visualizzazione del profilo sarà disponibile con il server'}</div>
+      <div id="coachAthleteBody" style="padding:6px 14px 8px;max-height:46vh;overflow-y:auto">
+        <div style="text-align:center;padding:30px 10px;color:var(--muted);font-size:12px">${t('coach_loading')||'Caricamento allenamenti…'}</div>
       </div>
-      <div style="padding:13px 14px">
+      <div style="padding:8px 14px 0;border-top:1px solid var(--row-divider)">
         <button onclick="_coachRemoveAthlete('${scJs}')" style="width:100%;background:transparent;border:none;padding:10px;color:rgba(255,100,100,.65);font-family:var(--font);font-size:12.5px;font-weight:700;letter-spacing:.05em;cursor:pointer;-webkit-tap-highlight-color:transparent;display:flex;align-items:center;justify-content:center;gap:7px">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
           ${t('coach_remove')||'RIMUOVI'}
@@ -28874,6 +28899,49 @@ function _coachOpenAthleteView(name,code){
     </div>`;
   ov.style.display='flex';
   ov.onclick=e=>{ if(e.target===ov) ov.style.display='none'; };
+  try{ _coachLoadAthleteData(code); }catch(_){}
+}
+
+// Carica dal server e mostra gli allenamenti dell'atleta (vista allenatore)
+async function _coachLoadAthleteData(code){
+  const body = document.getElementById('coachAthleteBody');
+  if(!body) return;
+  const esc = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const fmtDur = s => { s=Math.max(0,Math.round(s||0)); const h=Math.floor(s/3600), m=Math.floor((s%3600)/60); return h?(h+'h '+m+'m'):(m+'m'); };
+  const fmtDate = (ts,ds) => { let d=null; if(ts) d=new Date(ts); else if(ds) d=new Date(ds); if(!d||isNaN(d)) return '—'; try{ return d.toLocaleDateString((typeof _currentLang!=='undefined'&&_currentLang)||'it',{day:'2-digit',month:'short',year:'2-digit'}); }catch(_){ return d.toISOString().slice(0,10); } };
+  try{
+    const r = await _api('/coach/athlete/'+encodeURIComponent(code), { timeout: 60000 });
+    let acts = Array.isArray(r.activities) ? r.activities.slice() : [];
+    if(!r || !r.hasData || acts.length===0){
+      body.innerHTML = `<div style="text-align:center;padding:26px 10px;color:var(--muted);font-size:12px;line-height:1.6">${t('coach_no_data')||'Questo atleta non ha ancora sincronizzato i suoi allenamenti sul cloud.'}</div>`;
+      return;
+    }
+    acts.sort((a,b)=>(b.ts||0)-(a.ts||0));
+    let totKm=0, totSec=0, totTss=0;
+    acts.forEach(a=>{ totKm+=(a.distance||0)/1000; totSec+=(a.duration||0); totTss+=(a.tss||0); });
+    const stat = (v,l) => `<div style="flex:1;text-align:center"><div style="font-size:16px;font-weight:800;color:var(--text-inv);letter-spacing:-.02em">${v}</div><div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:2px">${l}</div></div>`;
+    const head = `<div style="display:flex;gap:4px;padding:8px 4px 12px">${stat(acts.length, t('coach_activities')||'Att.')}${stat(Math.round(totKm)+'','km')}${stat(fmtDur(totSec),t('coach_time')||'Tempo')}${totTss?stat(Math.round(totTss),'TSS'):''}</div>`;
+    const rows = acts.slice(0,80).map(a=>{
+      const km = a.distance ? (a.distance/1000).toFixed(1)+' km' : '';
+      const dur = a.duration ? fmtDur(a.duration) : '';
+      const tss = a.tss ? Math.round(a.tss)+' TSS' : '';
+      const meta = [km,dur,tss].filter(Boolean).join('  ·  ');
+      const nm = esc(a.name) || (t('coach_activity')||'Allenamento');
+      return `<div style="padding:11px 4px;border-top:1px solid var(--row-divider)">
+        <div style="display:flex;align-items:baseline;gap:8px">
+          <span style="font-size:13px;font-weight:600;color:var(--text);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nm}</span>
+          <span style="font-size:10.5px;color:var(--dim);font-family:var(--mono);flex-shrink:0">${fmtDate(a.ts,a.date)}</span>
+        </div>
+        ${meta?`<div style="font-size:11px;color:var(--muted);margin-top:3px">${meta}</div>`:''}
+      </div>`;
+    }).join('');
+    body.innerHTML = head + rows;
+  }catch(err){
+    const msg = (err && err.status===404)
+      ? (t('coach_not_found_srv')||'Atleta non trovato sul server. Deve aver fatto accesso almeno una volta col suo account.')
+      : (t('coach_load_err')||'Impossibile caricare i dati. Server non raggiungibile, riprova tra poco.');
+    body.innerHTML = `<div style="text-align:center;padding:26px 10px;color:var(--muted);font-size:12px;line-height:1.6">${msg}</div>`;
+  }
 }
 
 function renderCoachSection(){
