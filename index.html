@@ -1587,6 +1587,8 @@ var TRANSLATIONS = {
     sync_cloud_backup:'Backup & Sincronizzazione',
     sync_backup_now:'Backup ora',
     sync_restore_now:'Ripristina',
+    sync_export_file:'Esporta tutto',
+    sync_import_file:'Importa file',
     coach_loading:'Caricamento allenamenti…',
     coach_no_data:'Questo atleta non ha ancora sincronizzato i suoi allenamenti sul cloud.',
     coach_not_found_srv:'Atleta non trovato sul server. Deve aver fatto accesso almeno una volta col suo account.',
@@ -11220,6 +11222,58 @@ async function _cloudDiag(){
   const txt = L.join('\n');
   try{ if(navigator.clipboard) navigator.clipboard.writeText(txt); }catch(_){}
   try{ prompt('DIAGNOSTICA — copia tutto e mandamelo:', txt); }catch(_){ try{ alert(txt); }catch(__){} }
+}
+
+// ═══ ESPORTA / IMPORTA: file completo con TUTTO (affidabile, niente server) ═══
+async function _exportFull(){
+  try{
+    try{ showToast('Preparo il file…', 1500); }catch(_){}
+    // tutto il localStorage tranne credenziali/sessione e le copie attività
+    const ls = {};
+    const DENY = {'wl_auth_hash':1,'wl_auth_salt':1,'wl_at':1,'wl_rt':1,'savedRides':1,'savedRides_backup':1,'savedRides_ids':1,'wattlab_meta':1};
+    for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(!k||DENY[k]) continue; ls[k]=localStorage.getItem(k); }
+    // attività COMPLETE (con stream) da IndexedDB
+    let rides = [];
+    try{ rides = (typeof getSavedRidesAsync==='function') ? await getSavedRidesAsync() : ((typeof getSavedRides==='function')?getSavedRides():[]); }
+    catch(_){ rides = (typeof getSavedRides==='function')?getSavedRides():[]; }
+    const bundle = { app:'wattlab', version:1, exportedAt:new Date().toISOString(), email:(localStorage.getItem('wl_auth_email')||''), localStorage:ls, rides:rides };
+    const blob = new Blob([JSON.stringify(bundle)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url;
+    a.download = 'wattlab-backup-'+new Date().toISOString().slice(0,10)+'.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 1500);
+    try{ showToast('File salvato ✓ ('+rides.length+' attività)', 3000); }catch(_){}
+  }catch(e){ try{ alert('Export fallito: '+((e&&e.message)||e)); }catch(_){} }
+}
+function _importFullPick(){
+  let inp = document.getElementById('_wlImportFile');
+  if(!inp){
+    inp=document.createElement('input'); inp.type='file'; inp.id='_wlImportFile';
+    inp.accept='.json,application/json'; inp.style.display='none';
+    inp.addEventListener('change', _importFullHandle);
+    document.body.appendChild(inp);
+  }
+  inp.value=''; inp.click();
+}
+async function _importFullHandle(ev){
+  const f = ev.target && ev.target.files && ev.target.files[0];
+  if(!f) return;
+  try{
+    const txt = await f.text();
+    const b = JSON.parse(txt);
+    if(!b || b.app!=='wattlab' || !b.localStorage){ try{ alert('File non valido (non è un backup WattLab).'); }catch(_){} return; }
+    const nRides = (b.rides && b.rides.length) || 0;
+    try{ if(!confirm('Importare questo backup?\nSostituisce i dati di QUESTO dispositivo.\n\nAttività nel file: '+nRides)) return; }catch(_){}
+    // 1) localStorage (tranne credenziali/sessione/config di questo device)
+    const DENY = {'wl_auth_hash':1,'wl_auth_salt':1,'wl_at':1,'wl_rt':1,'wl_api_url':1};
+    Object.keys(b.localStorage).forEach(k=>{ if(DENY[k]) return; try{ localStorage.setItem(k, b.localStorage[k]); }catch(_){} });
+    // 2) attività complete → IndexedDB + cache (setSavedRides scrive tutto)
+    if(Array.isArray(b.rides) && typeof setSavedRides==='function'){ try{ await setSavedRides(b.rides); }catch(_){} }
+    try{ _ridesCache = null; }catch(_){}
+    try{ alert('Import completato ✓ ('+nRides+' attività). Ricarico la pagina.'); }catch(_){}
+    setTimeout(()=>location.reload(), 700);
+  }catch(e){ try{ alert('Import fallito: '+((e&&e.message)||e)); }catch(_){} }
 }
 // ═══ BACKUP CLOUD AUTOMATICO (sempre attivo se loggato sul server) ═══
 let _cloudAutoBackupTimer = null;
@@ -25270,6 +25324,13 @@ function _renderSubSecurity(body){
           <button onclick="_cloudBackupNow()" class="gc" style="flex:1">${t('sync_backup_now')||'Backup ora'}</button>
           <button onclick="_cloudRestoreNow()" class="gc" style="flex:1">${t('sync_restore_now')||'Ripristina'}</button>
           <button onclick="_cloudDiag()" class="gc" style="flex:1">Diagnostica</button>
+        </div>
+        <div style="padding:0 16px 14px">
+          <div style="font-size:10.5px;color:var(--muted);margin-bottom:6px;line-height:1.4">Backup completo in un file (attività con grafici, Strava, FTP, tutto) — non dipende dal server.</div>
+          <div style="display:flex;gap:8px">
+            <button onclick="_exportFull()" class="gc" style="flex:1">${t('sync_export_file')||'Esporta tutto'}</button>
+            <button onclick="_importFullPick()" class="gc" style="flex:1">${t('sync_import_file')||'Importa file'}</button>
+          </div>
         </div>
         <div id="devicesHeaderRow" style="display:none;padding:10px 16px 6px;align-items:center;justify-content:space-between;border-top:1px solid var(--row-divider)">
           <span class="sec-lbl">${t('sync_devices')||'Dispositivi connessi'}</span>
