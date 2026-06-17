@@ -11096,19 +11096,41 @@ function _coachBuildSummary(){
     }));
   }catch(_){ return []; }
 }
+function _ridesLight(){
+  // Attività senza gli stream pesanti (fallback per stare sotto il limite cloud)
+  try{
+    const rides = JSON.parse(localStorage.getItem('savedRides')||'[]');
+    const HEAVY = ['powerStream','gpsTrack','elevTrack','hrStream','altStream','cadStream','velStream','zoneSecs'];
+    return rides.map(r=>{
+      const c = Object.assign({}, r);
+      HEAVY.forEach(s=>{ delete c[s]; });
+      if(c.session && typeof c.session==='object'){ c.session = Object.assign({}, c.session); HEAVY.forEach(s=>{ delete c.session[s]; }); }
+      return c;
+    });
+  }catch(_){ return []; }
+}
 function _collectLocalData(){
   const out = {};
+  // Mai inviare: credenziali locali, URL server, token di sessione di QUESTO device
+  const DENY = { 'wl_auth_hash':1,'wl_auth_salt':1,'wl_api_url':1,'wl_at':1,'wl_rt':1 };
   try{
     for(let i=0;i<localStorage.length;i++){
       const k = localStorage.key(i);
-      if(k && k.startsWith('wl_') && k !== 'wl_auth_hash' && k !== 'wl_auth_salt' && k !== 'wl_api_url'){
-        const v = localStorage.getItem(k);
-        // Salta valori troppo grandi singolarmente (>1MB)
-        if(v && v.length < 1024*1024) out[k] = v;
-      }
+      if(!k || DENY[k]) continue;
+      // Impostazioni (wl_*) + connessione Strava (strava*) → vanno nel backup
+      if(!(k.startsWith('wl_') || k.startsWith('strava'))) continue;
+      const v = localStorage.getItem(k);
+      if(v && v.length < 1024*1024) out[k] = v;
     }
   }catch(_){}
-  // Riassunto allenamenti per l'allenatore (entra nello snapshot perché wl_*)
+  // Attività: complete se sotto ~4MB, altrimenti versione leggera (senza stream pesanti)
+  try{
+    const full = localStorage.getItem('savedRides');
+    if(full && full.length){
+      out['savedRides'] = full.length < 4*1024*1024 ? full : JSON.stringify(_ridesLight());
+    }
+  }catch(_){}
+  // Riassunto allenamenti per l'allenatore
   try{ out['wl_coach_summary'] = JSON.stringify(_coachBuildSummary()); }catch(_){}
   return out;
 }
@@ -11169,19 +11191,35 @@ function _startCloudAutoBackup(){
 // ma l'account ha un backup cloud, lo recupera in silenzio. Chiamato dopo login.
 async function _cloudAutoRestoreIfEmpty(){
   try{
-    const localRides = (typeof getSavedRides==='function') ? getSavedRides().length : 0;
-    if(localRides > 0) return; // device già con dati: non toccare nulla
-    const r = await apiGet('/sync/latest');
+    const r = await apiGet('/sync/latest', { timeout: 60000 });
     if(!r || !r.snapshot || !r.snapshot.payload) return;
     const data = r.snapshot.payload;
-    let restored = 0;
-    Object.keys(data).forEach(k => {
-      if(k === 'wl_auth_hash' || k === 'wl_auth_salt') return; // mai sovrascrivere credenziali locali
-      try{ localStorage.setItem(k, typeof data[k] === 'string' ? data[k] : JSON.stringify(data[k])); restored++; }catch(_){}
-    });
-    if(restored > 0){
-      try{ showToast('Dati ripristinati dal cloud ✓', 2600); }catch(_){}
-      setTimeout(()=>location.reload(), 1400);
+    const localRides = (typeof getSavedRides==='function') ? getSavedRides().length : 0;
+    // Mai sovrascrivere: credenziali locali, URL server, token di sessione di questo device
+    const DENY = { 'wl_auth_hash':1,'wl_auth_salt':1,'wl_api_url':1,'wl_at':1,'wl_rt':1,'wl_coach_summary':1 };
+
+    if(localRides === 0){
+      // Dispositivo vuoto → ripristino COMPLETO (impostazioni + Strava + attività)
+      let restored = 0;
+      Object.keys(data).forEach(k => {
+        if(DENY[k]) return;
+        try{ localStorage.setItem(k, typeof data[k]==='string' ? data[k] : JSON.stringify(data[k])); restored++; }catch(_){}
+      });
+      if(restored > 0){
+        try{ _ridesCache = null; }catch(_){}
+        try{ showToast('Dati ripristinati dal cloud ✓', 2600); }catch(_){}
+        setTimeout(()=>location.reload(), 1400);
+      }
+    } else {
+      // Dispositivo con dati → collega almeno lo Strava di QUESTO account (se diverso)
+      const cloudTok = data['stravaToken'];
+      if(typeof cloudTok === 'string' && cloudTok && cloudTok !== localStorage.getItem('stravaToken')){
+        Object.keys(data).forEach(k => {
+          if(k.startsWith('strava')){ try{ localStorage.setItem(k, typeof data[k]==='string'?data[k]:JSON.stringify(data[k])); }catch(_){} }
+        });
+        try{ showToast('Strava dell\'account collegato ✓', 2400); }catch(_){}
+        setTimeout(()=>location.reload(), 1400);
+      }
     }
   }catch(_){ /* offline o nessun backup: ignora */ }
 }
