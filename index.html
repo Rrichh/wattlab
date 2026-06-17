@@ -10994,10 +10994,23 @@ async function _apiCheckOnline(){
   }catch(_){ _apiOnline = false; }
   return _apiOnline;
 }
+// Token di sessione (per auth cross-dominio via header Authorization).
+function _authStoreTokens(r){
+  try{
+    if(r && r.accessToken)  localStorage.setItem('wl_at', r.accessToken);
+    if(r && r.refreshToken) localStorage.setItem('wl_rt', r.refreshToken);
+  }catch(_){}
+}
+function _authClearTokens(){
+  try{ localStorage.removeItem('wl_at'); localStorage.removeItem('wl_rt'); }catch(_){}
+}
 async function _api(path, opts){
   opts = opts || {};
   const method = (opts.method || 'GET').toUpperCase();
   const headers = Object.assign({ 'Accept':'application/json' }, opts.headers || {});
+  // Auth via token: l'header Authorization funziona cross-dominio anche dove
+  // i cookie di terze parti sono bloccati (Safari/iOS, Chrome recenti).
+  try{ const _at = localStorage.getItem('wl_at'); if(_at && !headers['Authorization']) headers['Authorization'] = 'Bearer '+_at; }catch(_){}
   const init = { method, headers, mode:'cors', credentials:'include' };
   if(opts.body !== undefined){
     if(typeof opts.body === 'object' && !(opts.body instanceof FormData)){
@@ -11029,8 +11042,10 @@ async function _api(path, opts){
   // Auto-refresh on 401 (eccetto la rotta /auth/refresh stessa per evitare loop)
   if(res.status === 401 && !p.includes('/auth/refresh') && !opts._retried){
     try{
-      const rr = await fetch(_apiBase()+'/api/auth/refresh', { method:'POST', mode:'cors', credentials:'include' });
+      let _rt = null; try{ _rt = localStorage.getItem('wl_rt'); }catch(_){}
+      const rr = await fetch(_apiBase()+'/api/auth/refresh', { method:'POST', mode:'cors', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(_rt ? { refreshToken: _rt } : {}) });
       if(rr.ok){
+        try{ const rd = await rr.json(); _authStoreTokens(rd); }catch(_){}
         return _api(path, Object.assign({}, opts, { _retried: true }));
       }
     }catch(_){}
@@ -11630,9 +11645,10 @@ async function _authDoRegister(){
   // Tenta registrazione lato server (se online), altrimenti fallback locale
   let serverOk = false;
   try{
-    const r = await apiPost('/auth/register', { email, password: pwd });
+    const r = await _api('/auth/register', { method:'POST', body:{ email, password: pwd }, timeout: 60000 });
     if(r && r.id){
       serverOk = true;
+      _authStoreTokens(r);
       try{ localStorage.setItem('wl_auth_user_id', r.id); }catch(_){}
       try{ localStorage.setItem('wl_premium', r.premium ? '1' : ''); }catch(_){}
       try{ _syncProfileToServer(); }catch(_){}
@@ -11674,9 +11690,10 @@ async function _authDoLogin(){
   // Prova prima il server (se online), altrimenti fallback locale
   let serverOk = false;
   try{
-    const r = await apiPost('/auth/login', { email, password: pwd });
+    const r = await _api('/auth/login', { method:'POST', body:{ email, password: pwd }, timeout: 60000 });
     if(r && r.id){
       serverOk = true;
+      _authStoreTokens(r);
       // Aggiorna anche stato locale per consistenza
       try{
         localStorage.setItem('wl_auth_email', r.email);
@@ -11853,6 +11870,7 @@ async function _authLogout(){
     localStorage.removeItem('wl_auth_hash');
     localStorage.removeItem('wl_auth_salt');
     localStorage.removeItem('wl_auth_user_id');
+    _authClearTokens();
     sessionStorage.removeItem('wl_auth_skip');
   }catch(e){}
   _authShowGate();
