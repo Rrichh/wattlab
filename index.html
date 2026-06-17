@@ -11098,18 +11098,26 @@ function _coachBuildSummary(){
     }));
   }catch(_){ return []; }
 }
-function _ridesLight(){
-  // Attività senza gli stream pesanti (fallback per stare sotto il limite cloud)
+function _ridesForBackup(){
+  // TUTTE le attività dalla cache (IndexedDB), non dal localStorage che è troncato.
+  // Senza stream pesanti, e ridotte solo se serve per stare sotto il limite cloud (5MB).
   try{
-    const rides = JSON.parse(localStorage.getItem('savedRides')||'[]');
-    const HEAVY = ['powerStream','gpsTrack','elevTrack','hrStream','altStream','cadStream','velStream','zoneSecs'];
-    return rides.map(r=>{
+    const all = (typeof getSavedRides==='function') ? getSavedRides() : [];
+    if(!Array.isArray(all) || !all.length) return null;
+    let lite = (typeof _stripStreamsForBackup==='function') ? _stripStreamsForBackup(all) : all.slice();
+    const HEAVY = ['powerStream','gpsTrack','elevTrack','hrStream','altStream','cadStream','velStream','zoneSecs','tempStream','distStream','timeStream','latlng','records','samples','smoothPower','smoothHr'];
+    lite = lite.map(r=>{
+      if(!r || typeof r!=='object') return r;
       const c = Object.assign({}, r);
-      HEAVY.forEach(s=>{ delete c[s]; });
-      if(c.session && typeof c.session==='object'){ c.session = Object.assign({}, c.session); HEAVY.forEach(s=>{ delete c.session[s]; }); }
+      HEAVY.forEach(k=>{ delete c[k]; });
+      if(c.session && typeof c.session==='object'){ const s = Object.assign({}, c.session); HEAVY.forEach(k=>{ delete s[k]; }); c.session = s; }
       return c;
     });
-  }catch(_){ return []; }
+    let arr = lite, js = JSON.stringify(arr);
+    // Se ancora troppo grande: tieni le più recenti (sono ordinate desc per data)
+    while(js.length > 4500000 && arr.length > 30){ arr = arr.slice(0, Math.max(30, Math.floor(arr.length*0.7))); js = JSON.stringify(arr); }
+    return js;
+  }catch(_){ return null; }
 }
 function _collectLocalData(){
   const out = {};
@@ -11128,12 +11136,10 @@ function _collectLocalData(){
       if(v != null && v.length < 1024*1024) out[k] = v;
     }
   }catch(_){}
-  // Attività: complete se sotto ~4MB, altrimenti versione leggera (senza stream pesanti)
+  // Attività: TUTTE dalla cache (IndexedDB), leggere — non dal localStorage troncato
   try{
-    const full = localStorage.getItem('savedRides');
-    if(full && full.length){
-      out['savedRides'] = full.length < 4*1024*1024 ? full : JSON.stringify(_ridesLight());
-    }
+    const sr = _ridesForBackup();
+    if(sr && sr.length) out['savedRides'] = sr;
   }catch(_){}
   // Riassunto allenamenti per l'allenatore
   try{ out['wl_coach_summary'] = JSON.stringify(_coachBuildSummary()); }catch(_){}
