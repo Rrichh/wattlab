@@ -11157,124 +11157,6 @@ async function _cloudBackup(){
     return { ok: false, error: err.message || 'sync_failed', status: err.status };
   }
 }
-// Backup manuale DIAGNOSTICO (alert che resta a schermo) — pulsante "Backup ora"
-async function _cloudBackupNow(){
-  let logged = false;
-  try{ const me = await _api('/auth/me', { timeout: 30000 }); logged = !!(me && me.id); }catch(_){ logged = false; }
-  if(!logged){
-    try{ alert('BACKUP — NON sei connesso al server.\n\nNon risulti loggato sul cloud, quindi il backup non parte.\nFai LOGOUT, poi LOGIN (aspetta "Accesso effettuato") e riprova.'); }catch(_){}
-    return;
-  }
-  const acts = (typeof getSavedRides==='function') ? getSavedRides().length : 0;
-  try{ showToast('Backup in corso… (~40s se il server dormiva)', 2200); }catch(_){}
-  const r = await _cloudBackup();
-  if(r.ok){
-    _cloudLastBackup = Date.now();
-    try{ alert('BACKUP OK ✓\n\nCaricato sul cloud: '+Math.round((r.size||0)/1024)+' KB\nAttivita incluse: '+acts+'\n\nOra sull\'ALTRO dispositivo: accedi a questo account e premi "Ripristina".'); }catch(_){}
-  } else {
-    try{ alert('BACKUP FALLITO\n\nMotivo: '+(r.error||'server non raggiungibile')+' (codice '+(r.status||'-')+')\n\nRiprova tra qualche secondo: il server gratuito potrebbe essersi appena svegliato.'); }catch(_){}
-  }
-}
-// Ripristino manuale DIAGNOSTICO forzato dal cloud — pulsante "Ripristina"
-async function _cloudRestoreNow(){
-  let snap = null;
-  try{ const r = await _api('/sync/latest', { timeout: 60000 }); snap = r && r.snapshot; }
-  catch(err){ try{ alert('RIPRISTINO — errore di rete.\n\n'+((err&&err.message)||'server non raggiungibile')+'\nIl server potrebbe essersi appena svegliato: riprova.'); }catch(_){} return; }
-  if(!snap || !snap.payload){
-    try{ alert('RIPRISTINO — Nessun backup sul cloud per questo account.\n\nVai sull\'ALTRO dispositivo (quello coi dati), accedi e premi "Backup ora" PRIMA. Poi torna qui e ripristina.'); }catch(_){}
-    return;
-  }
-  const data = snap.payload;
-  let nActs = 0;
-  try{ const sr = data['savedRides']; const arr = typeof sr==='string'?JSON.parse(sr):sr; nActs = Array.isArray(arr)?arr.length:0; }catch(_){}
-  const hasStrava = !!data['stravaToken'];
-  try{ if(!confirm('Trovato backup sul cloud:\n- Attivita: '+nActs+'\n- Strava collegato: '+(hasStrava?'si':'no')+'\n\nRipristinare su QUESTO dispositivo? (sostituisce i dati attuali)')) return; }catch(_){}
-  const DENY = { 'wl_auth_hash':1,'wl_auth_salt':1,'wl_api_url':1,'wl_at':1,'wl_rt':1,'wl_coach_summary':1 };
-  let n = 0;
-  Object.keys(data).forEach(k => { if(DENY[k]) return; try{ localStorage.setItem(k, typeof data[k]==='string'?data[k]:JSON.stringify(data[k])); n++; }catch(_){} });
-  try{ _ridesCache = null; }catch(_){}
-  try{ alert('RIPRISTINO OK ✓\n\nRipristinati '+nActs+' attivita, Strava: '+(hasStrava?'si':'no')+'.\nRicarico la pagina.'); }catch(_){}
-  setTimeout(()=>location.reload(), 500);
-}
-// Diagnostica: mostra lo stato esatto (locale + cloud) per capire i problemi di sync
-async function _cloudDiag(){
-  const L = [];
-  const push = (s)=>L.push(s);
-  try{ push('URL: '+location.href); }catch(_){}
-  try{ push('API: '+(_apiBase()||'(same-origin)')); }catch(_){}
-  try{ push('email: '+(localStorage.getItem('wl_auth_email')||'-')); }catch(_){}
-  try{ push('sessione: '+(localStorage.getItem('wl_auth_session')||'-')+' | token salvato: '+(localStorage.getItem('wl_at')?'SI':'NO')); }catch(_){}
-  try{ push('attivita in memoria (cache): '+((typeof getSavedRides==='function')?getSavedRides().length:'?')); }catch(_){}
-  try{ const ls=localStorage.getItem('savedRides')||''; let n=0; try{n=JSON.parse(ls||'[]').length;}catch(_){}; push('attivita in localStorage: '+n+' ('+Math.round(ls.length/1024)+' KB)'); }catch(_){}
-  try{ const idb=await getIndexedDBRides(); push('attivita in IndexedDB: '+(idb?idb.length:'-')); }catch(_){}
-  try{ const me=await _api('/auth/me',{timeout:30000}); push('server login: OK ('+(me&&me.email)+')'); }
-  catch(e){ push('server login: ERRORE '+((e&&e.status)||(e&&e.message)||'')); }
-  try{
-    const r=await _api('/sync/latest',{timeout:60000});
-    const p=(r&&r.snapshot&&r.snapshot.payload)||null;
-    if(!p){ push('CLOUD: nessun backup'); }
-    else{
-      let n=0; try{ const sr=p.savedRides; const a=typeof sr==='string'?JSON.parse(sr):sr; n=Array.isArray(a)?a.length:0; }catch(_){}
-      push('CLOUD attivita: '+n+' | chiavi: '+Object.keys(p).length+' | strava: '+(!!p.stravaToken)+' | ftp: '+(p.ftp||'-'));
-      try{ push('CLOUD aggiornato: '+(r.snapshot.createdAt||'-')+' | size: '+Math.round((r.snapshot.size||0)/1024)+' KB'); }catch(_){}
-    }
-  }catch(e){ push('CLOUD: ERRORE '+((e&&e.status)||(e&&e.message)||'')); }
-  const txt = L.join('\n');
-  try{ if(navigator.clipboard) navigator.clipboard.writeText(txt); }catch(_){}
-  try{ prompt('DIAGNOSTICA — copia tutto e mandamelo:', txt); }catch(_){ try{ alert(txt); }catch(__){} }
-}
-
-// ═══ ESPORTA / IMPORTA: file completo con TUTTO (affidabile, niente server) ═══
-async function _exportFull(){
-  try{
-    try{ showToast('Preparo il file…', 1500); }catch(_){}
-    // tutto il localStorage tranne credenziali/sessione e le copie attività
-    const ls = {};
-    const DENY = {'wl_auth_hash':1,'wl_auth_salt':1,'wl_at':1,'wl_rt':1,'savedRides':1,'savedRides_backup':1,'savedRides_ids':1,'wattlab_meta':1};
-    for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(!k||DENY[k]) continue; ls[k]=localStorage.getItem(k); }
-    // attività COMPLETE (con stream) da IndexedDB
-    let rides = [];
-    try{ rides = (typeof getSavedRidesAsync==='function') ? await getSavedRidesAsync() : ((typeof getSavedRides==='function')?getSavedRides():[]); }
-    catch(_){ rides = (typeof getSavedRides==='function')?getSavedRides():[]; }
-    const bundle = { app:'wattlab', version:1, exportedAt:new Date().toISOString(), email:(localStorage.getItem('wl_auth_email')||''), localStorage:ls, rides:rides };
-    const blob = new Blob([JSON.stringify(bundle)], {type:'application/json'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href=url;
-    a.download = 'wattlab-backup-'+new Date().toISOString().slice(0,10)+'.json';
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url), 1500);
-    try{ showToast('File salvato ✓ ('+rides.length+' attività)', 3000); }catch(_){}
-  }catch(e){ try{ alert('Export fallito: '+((e&&e.message)||e)); }catch(_){} }
-}
-function _importFullPick(){
-  let inp = document.getElementById('_wlImportFile');
-  if(!inp){
-    inp=document.createElement('input'); inp.type='file'; inp.id='_wlImportFile';
-    inp.accept='.json,application/json'; inp.style.display='none';
-    inp.addEventListener('change', _importFullHandle);
-    document.body.appendChild(inp);
-  }
-  inp.value=''; inp.click();
-}
-async function _importFullHandle(ev){
-  const f = ev.target && ev.target.files && ev.target.files[0];
-  if(!f) return;
-  try{
-    const txt = await f.text();
-    const b = JSON.parse(txt);
-    if(!b || b.app!=='wattlab' || !b.localStorage){ try{ alert('File non valido (non è un backup WattLab).'); }catch(_){} return; }
-    const nRides = (b.rides && b.rides.length) || 0;
-    try{ if(!confirm('Importare questo backup?\nSostituisce i dati di QUESTO dispositivo.\n\nAttività nel file: '+nRides)) return; }catch(_){}
-    // 1) localStorage (tranne credenziali/sessione/config di questo device)
-    const DENY = {'wl_auth_hash':1,'wl_auth_salt':1,'wl_at':1,'wl_rt':1,'wl_api_url':1};
-    Object.keys(b.localStorage).forEach(k=>{ if(DENY[k]) return; try{ localStorage.setItem(k, b.localStorage[k]); }catch(_){} });
-    // 2) attività complete → IndexedDB + cache (setSavedRides scrive tutto)
-    if(Array.isArray(b.rides) && typeof setSavedRides==='function'){ try{ await setSavedRides(b.rides); }catch(_){} }
-    try{ _ridesCache = null; }catch(_){}
-    try{ alert('Import completato ✓ ('+nRides+' attività). Ricarico la pagina.'); }catch(_){}
-    setTimeout(()=>location.reload(), 700);
-  }catch(e){ try{ alert('Import fallito: '+((e&&e.message)||e)); }catch(_){} }
-}
 // ═══ BACKUP CLOUD AUTOMATICO (sempre attivo se loggato sul server) ═══
 let _cloudAutoBackupTimer = null;
 let _cloudIsLogged = null;     // cache stato login server (null=sconosciuto)
@@ -11289,14 +11171,25 @@ async function _cloudCheckLogged(){
 }
 
 // Backup silenzioso: gira solo se loggato, con throttle minimo 60s tra due upload
+// Indicatore di sync live (aggiorna il badge nella sezione impostazioni, se aperta)
+function _setSyncBadge(txt, state){
+  try{
+    const el = document.getElementById('_cloudBackupStatus');
+    if(!el) return;
+    el.textContent = String(txt).toUpperCase();
+    el.style.color = state===1 ? '#7ee0a0' : (state===-1 ? '#e0a07e' : 'var(--muted)');
+  }catch(_){}
+}
 async function _cloudBackupSilent(){
   if(_cloudIsLogged === false) return;            // sicuramente non loggato → skip
   if(Date.now() - _cloudLastBackup < 60_000) return; // throttle
   // Se non sappiamo lo stato, verifichiamo una volta
   if(_cloudIsLogged === null){ await _cloudCheckLogged(); if(!_cloudIsLogged) return; }
+  _setSyncBadge('sync…', 0);
   const r = await _cloudBackup();
-  if(r.ok){ _cloudLastBackup = Date.now(); }
-  else if(r.status === 401){ _cloudIsLogged = false; } // sessione scaduta
+  if(r.ok){ _cloudLastBackup = Date.now(); _setSyncBadge('salvato', 1); }
+  else if(r.status === 401){ _cloudIsLogged = false; _setSyncBadge('offline', -1); } // sessione scaduta
+  else { _setSyncBadge('riprovo', -1); }
 }
 
 // Programma un backup tra 25s (coalescing: più modifiche ravvicinate = 1 solo upload)
@@ -25319,18 +25212,6 @@ function _renderSubSecurity(body){
             <div style="font-size:11px;color:var(--muted);margin-top:2px;line-height:1.4">Automatico quando sei connesso. Su un nuovo dispositivo i dati si ripristinano da soli.</div>
           </div>
           <div id="_cloudBackupStatus" style="font-size:10px;font-weight:700;color:var(--muted);background:var(--surface-2);border:1px solid var(--row-divider);padding:4px 9px;border-radius:50px;letter-spacing:.05em;text-transform:uppercase;flex-shrink:0">AUTO</div>
-        </div>
-        <div style="padding:0 16px 14px;display:flex;gap:8px">
-          <button onclick="_cloudBackupNow()" class="gc" style="flex:1">${t('sync_backup_now')||'Backup ora'}</button>
-          <button onclick="_cloudRestoreNow()" class="gc" style="flex:1">${t('sync_restore_now')||'Ripristina'}</button>
-          <button onclick="_cloudDiag()" class="gc" style="flex:1">Diagnostica</button>
-        </div>
-        <div style="padding:0 16px 14px">
-          <div style="font-size:10.5px;color:var(--muted);margin-bottom:6px;line-height:1.4">Backup completo in un file (attività con grafici, Strava, FTP, tutto) — non dipende dal server.</div>
-          <div style="display:flex;gap:8px">
-            <button onclick="_exportFull()" class="gc" style="flex:1">${t('sync_export_file')||'Esporta tutto'}</button>
-            <button onclick="_importFullPick()" class="gc" style="flex:1">${t('sync_import_file')||'Importa file'}</button>
-          </div>
         </div>
         <div id="devicesHeaderRow" style="display:none;padding:10px 16px 6px;align-items:center;justify-content:space-between;border-top:1px solid var(--row-divider)">
           <span class="sec-lbl">${t('sync_devices')||'Dispositivi connessi'}</span>
