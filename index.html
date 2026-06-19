@@ -11149,10 +11149,15 @@ function _collectLocalData(){
 }
 async function _cloudBackup(){
   try{
+    // Carica TUTTE le attività da IndexedDB prima del backup: la cache sincrona
+    // può essere troncata (solo quelle di localStorage) se IndexedDB non è ancora
+    // caricato → così invece prendiamo SEMPRE l'elenco completo.
+    try{ if(typeof getSavedRidesAsync==='function') await getSavedRidesAsync(); }catch(_){}
     const payload = _collectLocalData();
     const deviceId = (()=>{ try{ let d=localStorage.getItem('wl_device_id'); if(!d){ d=(crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2)); localStorage.setItem('wl_device_id',d); } return d; }catch(_){ return null; } })();
     const r = await _api('/sync/snapshot', { method:'POST', body:{ payload, deviceId }, timeout: 60000 });
-    return { ok: true, size: r.size };
+    const acts = (typeof getSavedRides==='function') ? getSavedRides().length : 0;
+    return { ok: true, size: r.size, acts };
   } catch(err){
     return { ok: false, error: err.message || 'sync_failed', status: err.status };
   }
@@ -11187,7 +11192,7 @@ async function _cloudBackupSilent(){
   if(_cloudIsLogged === null){ await _cloudCheckLogged(); if(!_cloudIsLogged) return; }
   _setSyncBadge('sync…', 0);
   const r = await _cloudBackup();
-  if(r.ok){ _cloudLastBackup = Date.now(); _setSyncBadge('salvato', 1); }
+  if(r.ok){ _cloudLastBackup = Date.now(); _setSyncBadge('salvato '+(r.acts||0), 1); }
   else if(r.status === 401){ _cloudIsLogged = false; _setSyncBadge('offline', -1); } // sessione scaduta
   else { _setSyncBadge('riprovo', -1); }
 }
@@ -11225,10 +11230,12 @@ async function _cloudAutoRestoreIfEmpty(){
     // Conta attività nel cloud vs in locale
     let cloudActs = 0;
     try{ const sr = data['savedRides']; const a = typeof sr==='string'?JSON.parse(sr):sr; cloudActs = Array.isArray(a)?a.length:0; }catch(_){}
+    // Carica le attività vere da IndexedDB (la cache sync può essere troncata)
+    try{ if(typeof getSavedRidesAsync==='function') await getSavedRidesAsync(); }catch(_){}
     const localActs = (typeof getSavedRides==='function') ? getSavedRides().length : 0;
-    // Sicurezza: se QUESTO dispositivo ha più dati del cloud, non sovrascrivere
-    // (il cloud è vecchio) → aggiorna il cloud con i dati di questo dispositivo.
-    if(localActs > cloudActs){
+    // Se QUESTO dispositivo ha almeno tante attività del cloud, non sovrascrivere:
+    // aggiorna invece il cloud con i dati di questo dispositivo.
+    if(localActs > 0 && localActs >= cloudActs){
       try{ showToast('Questo dispositivo è più aggiornato — aggiorno il cloud', 2800); }catch(_){}
       setTimeout(()=>{ try{ _cloudBackupSilent(); }catch(_){} }, 1500);
       return;
