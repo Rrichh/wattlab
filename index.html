@@ -11162,6 +11162,52 @@ async function _cloudBackup(){
     return { ok: false, error: err.message || 'sync_failed', status: err.status };
   }
 }
+
+// ═══ ESPORTA / IMPORTA — file completo, copia IDENTICA di tutto ═══
+async function _exportFull(){
+  try{
+    try{ showToast('Preparo il file…', 1500); }catch(_){}
+    // tutto il localStorage (impostazioni, Strava, FTP, codice atleta, oscurazioni, ecc.)
+    const ls = {};
+    for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(!k) continue; ls[k]=localStorage.getItem(k); }
+    // tutte le attività COMPLETE (con grafici/stream + lap) da IndexedDB
+    let rides = [];
+    try{ rides = (typeof getSavedRidesAsync==='function') ? await getSavedRidesAsync() : ((typeof getSavedRides==='function')?getSavedRides():[]); }
+    catch(_){ rides = (typeof getSavedRides==='function')?getSavedRides():[]; }
+    const bundle = { app:'wattlab', version:2, exportedAt:new Date().toISOString(), email:(localStorage.getItem('wl_auth_email')||''), count:rides.length, localStorage:ls, rides:rides };
+    const blob = new Blob([JSON.stringify(bundle)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url;
+    a.download = 'wattlab-completo-'+new Date().toISOString().slice(0,10)+'.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 1500);
+    try{ showToast('File salvato ✓ — '+rides.length+' attività complete', 3200); }catch(_){}
+  }catch(e){ try{ alert('Export fallito: '+((e&&e.message)||e)); }catch(_){} }
+}
+function _importFullPick(){
+  let inp=document.getElementById('_wlImportFile');
+  if(!inp){ inp=document.createElement('input'); inp.type='file'; inp.id='_wlImportFile'; inp.accept='.json,application/json'; inp.style.display='none'; inp.addEventListener('change', _importFullHandle); document.body.appendChild(inp); }
+  inp.value=''; inp.click();
+}
+async function _importFullHandle(ev){
+  const f = ev.target && ev.target.files && ev.target.files[0];
+  if(!f) return;
+  try{
+    const txt = await f.text();
+    const b = JSON.parse(txt);
+    if(!b || b.app!=='wattlab' || !b.localStorage){ try{ alert('File non valido (non è un backup WattLab).'); }catch(_){} return; }
+    const nRides = (b.rides && b.rides.length) || 0;
+    try{ if(!confirm('Importare TUTTO da questo file?\nSostituisce i dati di QUESTO dispositivo.\n\nAttività: '+nRides)) return; }catch(_){}
+    // localStorage IDENTICO (salto solo config/sessione specifici del device)
+    const SKIP = {'wl_at':1,'wl_rt':1,'wl_api_url':1,'wl_device_id':1};
+    Object.keys(b.localStorage).forEach(k=>{ if(SKIP[k]) return; try{ localStorage.setItem(k, b.localStorage[k]); }catch(_){} });
+    // attività complete → IndexedDB + cache
+    if(Array.isArray(b.rides) && typeof setSavedRides==='function'){ try{ await setSavedRides(b.rides); }catch(_){} }
+    try{ _ridesCache = null; }catch(_){}
+    try{ alert('Importato ✓ — '+nRides+' attività complete. Ricarico la pagina.'); }catch(_){}
+    setTimeout(()=>location.reload(), 700);
+  }catch(e){ try{ alert('Import fallito: '+((e&&e.message)||e)); }catch(_){} }
+}
 // ═══ BACKUP CLOUD AUTOMATICO (sempre attivo se loggato sul server) ═══
 let _cloudAutoBackupTimer = null;
 let _cloudIsLogged = null;     // cache stato login server (null=sconosciuto)
@@ -11186,6 +11232,7 @@ function _setSyncBadge(txt, state){
   }catch(_){}
 }
 async function _cloudBackupSilent(){
+  return; // sync automatico disattivato — si usa Esporta/Importa file
   if(_cloudIsLogged === false) return;            // sicuramente non loggato → skip
   if(Date.now() - _cloudLastBackup < 60_000) return; // throttle
   // Se non sappiamo lo stato, verifichiamo una volta
@@ -11205,6 +11252,7 @@ function _scheduleCloudBackup(){
 }
 
 function _startCloudAutoBackup(){
+  return; // sync automatico disattivato — si usa Esporta/Importa file
   if(_cloudAutoBackupTimer) return;
   // Stato iniziale + primo backup poco dopo il boot
   _cloudCheckLogged().then(ok=>{ if(ok) setTimeout(()=>_cloudBackupSilent(), 8_000); });
@@ -11220,6 +11268,7 @@ function _startCloudAutoBackup(){
 // - se il cloud è più completo (o il device è vuoto) → ripristina TUTTO l'account
 // - se questo device ha più attività del cloud → NON sovrascrive, aggiorna il cloud
 async function _cloudAutoRestoreIfEmpty(){
+  return; // sync automatico disattivato — si usa Esporta/Importa file
   try{
     const r = await _api('/sync/latest', { timeout: 60000 });
     if(!r || !r.snapshot || !r.snapshot.payload){
@@ -25209,16 +25258,19 @@ function _renderSubSecurity(body){
             <div id="_secSyncLast" style="font-size:13px;font-weight:800;color:var(--text-inv);font-family:var(--font);line-height:1;letter-spacing:-.01em">${(()=>{const ls=localStorage.getItem('stravaLastSync');return ls?new Date(parseInt(ls)||ls).toLocaleString('it-IT',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):'—';})()}</div>
           </div>
         </div>
-        <!-- Cloud Backup + Multi-device Sync (Premium) -->
+        <!-- Backup completo: esporta/importa un file con TUTTO (copia identica) -->
         <div style="padding:14px 16px;border-top:1px solid var(--row-divider);display:flex;align-items:center;gap:12px">
           <div style="width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,rgba(106,171,255,.18) 0%,rgba(79,142,247,.06) 100%);border:1px solid rgba(106,171,255,.22);display:flex;align-items:center;justify-content:center;flex-shrink:0">
-            <svg viewBox="0 0 24 24" fill="none" stroke="rgba(140,180,255,.9)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="rgba(140,180,255,.9)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           </div>
           <div style="flex:1;min-width:0">
-            <div style="font-size:13px;font-weight:700;color:var(--text-inv)">${t('sync_cloud_backup')||'Cloud Backup & Sync'}</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:2px;line-height:1.4">Automatico quando sei connesso. Su un nuovo dispositivo i dati si ripristinano da soli.</div>
+            <div style="font-size:13px;font-weight:700;color:var(--text-inv)">Backup completo (file)</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px;line-height:1.4">Copia identica di tutto: attività con grafici, lap, impostazioni, Strava, FTP. Esporta e importa su un altro dispositivo.</div>
           </div>
-          <div id="_cloudBackupStatus" style="font-size:10px;font-weight:700;color:var(--muted);background:var(--surface-2);border:1px solid var(--row-divider);padding:4px 9px;border-radius:50px;letter-spacing:.05em;text-transform:uppercase;flex-shrink:0">AUTO</div>
+        </div>
+        <div style="padding:0 16px 14px;display:flex;gap:8px">
+          <button onclick="_exportFull()" class="gc" style="flex:1">${t('sync_export_file')||'Esporta tutto'}</button>
+          <button onclick="_importFullPick()" class="gc" style="flex:1">${t('sync_import_file')||'Importa file'}</button>
         </div>
         <div id="devicesHeaderRow" style="display:none;padding:10px 16px 6px;align-items:center;justify-content:space-between;border-top:1px solid var(--row-divider)">
           <span class="sec-lbl">${t('sync_devices')||'Dispositivi connessi'}</span>
