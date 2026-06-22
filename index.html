@@ -31512,44 +31512,24 @@ function _renderProgChart(opts){
     grid+=`<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="var(--row-divider)" stroke-width="1"/>`;
   }
 
-  // Dots — only first, last, peak, min
+  // Un pallino ben visibile su OGNI punto (i principali un filo più grandi)
   const peakIdx = vals.indexOf(maxV);
   const minIdx  = vals.indexOf(minV);
-  const keyIdx  = new Set([0, N-1, peakIdx, minIdx]);
   const dots = points.map((p,i)=>{
     const x=xF(i).toFixed(1), y=yF(p.val).toFixed(1);
-    if(keyIdx.has(i) || N<=3){
-      // Glow + main dot
-      const r = (i===0||i===N-1||i===peakIdx) ? 4 : 3;
-      return `<circle cx="${x}" cy="${y}" r="${r+3}" fill="${color}" opacity=".18"/>
-              <circle cx="${x}" cy="${y}" r="${r}" fill="${color}" stroke="rgba(0,0,0,.4)" stroke-width=".5"/>`;
-    }
-    return `<circle cx="${x}" cy="${y}" r="1.8" fill="${color}" opacity=".5"/>`;
+    const r = (i===0||i===N-1||i===peakIdx||i===minIdx) ? 4 : 3;
+    return `<circle cx="${x}" cy="${y}" r="${r+3}" fill="${color}" opacity=".16"/>
+            <circle cx="${x}" cy="${y}" r="${r}" fill="${color}" stroke="rgba(0,0,0,.4)" stroke-width=".5"/>`;
   }).join('');
 
-  // Value labels for peak/min/latest
-  const labels = [];
-  const labelFor = (idx) => {
-    const x=xF(idx), y=yF(vals[idx]);
-    // Valore SEMPRE sopra il pallino (clamp per non uscire dal bordo alto)
+  // Valore su OGNI punto, sempre sopra il pallino
+  const labels = points.map((p,i)=>{
+    const x=xF(i), y=yF(vals[i]);
     const lyTxt = Math.max(y - 10, 9).toFixed(1);
-    const ta = idx===0 ? 'start' : idx===N-1 ? 'end' : 'middle';
-    const lx = idx===0 ? Math.max(x, PL).toFixed(1) : idx===N-1 ? Math.min(x, W-PR).toFixed(1) : x.toFixed(1);
-    labels.push(`<text x="${lx}" y="${lyTxt}" text-anchor="${ta}" font-size="9" font-weight="700" fill="${color}" font-family="Manrope,sans-serif" letter-spacing=".01em">${vals[idx]}${unit||''}</text>`);
-  };
-  if(N>=2){
-    labelFor(peakIdx);
-    if(minIdx !== peakIdx) labelFor(minIdx);
-    if(N-1 !== peakIdx && N-1 !== minIdx) labelFor(N-1);
-    // Etichetta punto intermedio se N≥3 e non già coperto
-    if(N>=3){
-      const midIdx = Math.floor((N-1)/2);
-      const covered = new Set([peakIdx, minIdx, 0, N-1]);
-      if(!covered.has(midIdx)) labelFor(midIdx);
-    }
-  } else {
-    labelFor(0);
-  }
+    const ta = i===0 ? 'start' : i===N-1 ? 'end' : 'middle';
+    const lx = (i===0 ? Math.max(x, PL) : i===N-1 ? Math.min(x, W-PR) : x).toFixed(1);
+    return `<text x="${lx}" y="${lyTxt}" text-anchor="${ta}" font-size="9" font-weight="700" fill="${color}" font-family="Manrope,sans-serif" letter-spacing=".01em">${vals[i]}${unit||''}</text>`;
+  });
 
   const gid='pg'+Math.random().toString(36).slice(2,6);
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
