@@ -11,8 +11,8 @@
 <meta name="theme-color" content="#000000">
 <meta name="color-scheme" content="dark">
 <!-- App icon: identico al logo in alto a sinistra in home -->
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%23262a3a'/><stop offset='1' stop-color='%23161922'/></linearGradient></defs><rect x='0' y='0' width='64' height='64' rx='14' fill='url(%23g)'/><polyline points='12,44 24,30 34,34 46,18 54,24' stroke='%234f8ef7' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round' fill='none'/><circle cx='54' cy='24' r='3' fill='%234f8ef7'/></svg>">
-<link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%23262a3a'/><stop offset='1' stop-color='%23161922'/></linearGradient></defs><rect x='0' y='0' width='180' height='180' rx='40' fill='url(%23g)'/><polyline points='34,124 67,84 95,96 130,50 152,68' stroke='%234f8ef7' stroke-width='10' stroke-linecap='round' stroke-linejoin='round' fill='none'/><circle cx='152' cy='68' r='9' fill='%234f8ef7'/></svg>">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><defs><linearGradient id='b' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%2322306e'/><stop offset='1' stop-color='%23080c1a'/></linearGradient><linearGradient id='h' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='%23ffffff' stop-opacity='.1'/><stop offset='.45' stop-color='%23ffffff' stop-opacity='0'/></linearGradient><radialGradient id='gl'><stop offset='0' stop-color='%235a96ff' stop-opacity='.5'/><stop offset='1' stop-color='%235a96ff' stop-opacity='0'/></radialGradient></defs><rect width='180' height='180' rx='42' fill='url(%23b)'/><rect width='180' height='180' rx='42' fill='url(%23h)'/><circle cx='91' cy='88' r='62' fill='url(%23gl)'/><path d='M103 24 L60 98 L85 98 L79 154 L122 80 L97 80 Z' fill='%23ffffff'/></svg>">
+<link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><defs><linearGradient id='b' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%2322306e'/><stop offset='1' stop-color='%23080c1a'/></linearGradient><linearGradient id='h' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='%23ffffff' stop-opacity='.1'/><stop offset='.45' stop-color='%23ffffff' stop-opacity='0'/></linearGradient><radialGradient id='gl'><stop offset='0' stop-color='%235a96ff' stop-opacity='.5'/><stop offset='1' stop-color='%235a96ff' stop-opacity='0'/></radialGradient></defs><rect width='180' height='180' rx='42' fill='url(%23b)'/><rect width='180' height='180' rx='42' fill='url(%23h)'/><circle cx='91' cy='88' r='62' fill='url(%23gl)'/><path d='M103 24 L60 98 L85 98 L79 154 L122 80 L97 80 Z' fill='%23ffffff'/></svg>">
 
 <script>
 /* ════════════════════════════════════════════════════════
@@ -10409,9 +10409,8 @@ body[data-premium="1"] ._premiumInlineBadge { display: none !important; }
     <!-- Logo icon: identico al logo in alto a sinistra in home -->
     <div class="appLogo appLogo-md" style="opacity:0;animation:splashFadeIn .6s ease 0s forwards;margin-bottom:16px">
       <svg viewBox="0 0 24 24" fill="none" style="width:54%;height:54%">
-        <polyline points="3,17 8,10 13,13 18,5 21,8" stroke="var(--acc)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        <circle cx="21" cy="8" r="1.5" fill="var(--acc)"/>
-      </svg>
+        <path d="M13 2 L3 14 L12 14 L11 22 L21 10 L12 10 Z" fill="#fff"/>
+              </svg>
     </div>
     <!-- Wordmark -->
     <span style="font-family:var(--font);font-weight:800;font-size:30px;letter-spacing:.22em;color:var(--text-inv);text-transform:uppercase;opacity:0;animation:splashFadeIn .7s ease .25s forwards">WATTLAB</span>
@@ -12148,7 +12147,7 @@ function _showSplash(onHidden){
     sp = document.createElement('div');
     sp.id = 'splashScreen';
     sp.style.cssText = 'position:fixed;inset:0;z-index:9999;background:radial-gradient(ellipse at 50% 48%,rgba(79,142,247,.14) 0%,rgba(79,142,247,.04) 35%,#000 75%);display:flex;align-items:center;justify-content:center;transition:opacity .45s ease';
-    sp.innerHTML = document.querySelector('#splashScreen')?.innerHTML || '<div style="text-align:center"><div class="appLogo appLogo-md" style="margin:0 auto"><svg viewBox="0 0 24 24" fill="none" style="width:54%;height:54%"><polyline points="3,17 8,10 13,13 18,5 21,8" stroke="var(--acc)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="21" cy="8" r="1.5" fill="var(--acc)"/></svg></div><div style="font-family:Manrope,sans-serif;font-weight:800;font-size:20px;letter-spacing:6px;color:var(--text-inv);margin-top:14px">WATTLAB</div></div>';
+    sp.innerHTML = document.querySelector('#splashScreen')?.innerHTML || '<div style="text-align:center"><div class="appLogo appLogo-md" style="margin:0 auto"><svg viewBox="0 0 24 24" fill="none" style="width:54%;height:54%"><path d="M13 2 L3 14 L12 14 L11 22 L21 10 L12 10 Z" fill="#fff"/><circle cx="21" cy="8" r="1.5" fill="var(--acc)"/></svg></div><div style="font-family:Manrope,sans-serif;font-weight:800;font-size:20px;letter-spacing:6px;color:var(--text-inv);margin-top:14px">WATTLAB</div></div>';
     document.body.appendChild(sp);
   }
   sp.style.opacity = '1';
@@ -12238,9 +12237,8 @@ function _showSplash(onHidden){
       <div style="display:flex;flex-direction:column;align-items:center;text-align:center">
         <div class="appLogo appLogo-hero">
           <svg viewBox="0 0 24 24" fill="none" style="width:50%;height:50%">
-            <polyline points="3,17 8,10 13,13 18,5 21,8" stroke="var(--acc)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <circle cx="21" cy="8" r="1.5" fill="var(--acc)"/>
-          </svg>
+            <path d="M13 2 L3 14 L12 14 L11 22 L21 10 L12 10 Z" fill="#fff"/>
+                      </svg>
         </div>
         <!-- Wordmark -->
         <div class="brandmark brandmark-hero" style="margin-top:22px">WATTLAB</div>
@@ -12351,7 +12349,7 @@ function _showSplash(onHidden){
 .brandmark-hero{font-size:36px;background:linear-gradient(135deg,#ffffff 0%,#d0ddf7 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;text-shadow:0 2px 18px rgba(79,142,247,.25)}
 .brandmark-md{font-size:24px;background:linear-gradient(135deg,#ffffff 0%,#cdd9f0 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
 /* App logo — exact same gradient/border style as the home header, scaled per context */
-.appLogo{position:relative;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:linear-gradient(135deg,rgba(106,171,255,.22) 0%,rgba(79,142,247,.08) 100%);border:1px solid var(--card-border);box-shadow:inset 0 1px 0 var(--card-border)}
+.appLogo{position:relative;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:linear-gradient(135deg,#22306e 0%,#080c1a 100%);border:1px solid var(--card-border);box-shadow:inset 0 1px 0 var(--card-border)}
 .appLogo-hero{width:96px;height:96px;border-radius:26px;box-shadow:inset 0 1px 0 var(--surface-3),0 18px 38px -16px rgba(79,142,247,.45),0 6px 14px -6px rgba(0,0,0,.55)}
 .appLogo-hero::before{content:'';position:absolute;inset:-22px;border-radius:38px;background:radial-gradient(circle at 50% 55%,rgba(79,142,247,.22) 0%,rgba(79,142,247,.04) 55%,transparent 80%);filter:blur(18px);z-index:-1;pointer-events:none}
 .appLogo-md{width:64px;height:64px;border-radius:18px;box-shadow:inset 0 1px 0 var(--card-border),0 10px 22px -10px rgba(79,142,247,.35)}
@@ -12444,9 +12442,8 @@ function _showSplash(onHidden){
     <!-- Logo icon -->
     <div id="homeBrandLogo" style="width:40px;height:40px;border-radius:13px;background:linear-gradient(135deg,rgba(106,171,255,.2) 0%,rgba(79,142,247,.08) 100%);border:1px solid var(--row-divider);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:inset 0 1px 0 var(--card-border)">
       <svg viewBox="0 0 24 24" fill="none" style="width:18px;height:18px">
-        <polyline points="3,17 8,10 13,13 18,5 21,8" stroke="var(--acc)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        <circle cx="21" cy="8" r="1.5" fill="var(--acc)"/>
-      </svg>
+        <path d="M13 2 L3 14 L12 14 L11 22 L21 10 L12 10 Z" fill="#fff"/>
+              </svg>
     </div>
     <div style="flex:1">
       <div id="homeBrandText" style="font-family:var(--font);font-weight:800;font-size:20px;color:var(--text-inv);letter-spacing:-.02em;line-height:1">WATTLAB</div>
@@ -19852,7 +19849,7 @@ _refreshStorageEstimate();
 // ── Web App Manifest dinamico (icona PWA aggiornabile su Android) ──
 (function _injectManifest(){
   try{
-    const iconSvg = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%23262a3a'/><stop offset='1' stop-color='%23161922'/></linearGradient></defs><rect width='180' height='180' rx='40' fill='url(%23g)'/><polyline points='34,124 67,84 95,96 130,50 152,68' stroke='%234f8ef7' stroke-width='10' stroke-linecap='round' stroke-linejoin='round' fill='none'/><circle cx='152' cy='68' r='8' fill='%234f8ef7'/></svg>";
+    const iconSvg = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><defs><linearGradient id='b' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%2322306e'/><stop offset='1' stop-color='%23080c1a'/></linearGradient><linearGradient id='h' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='%23ffffff' stop-opacity='.1'/><stop offset='.45' stop-color='%23ffffff' stop-opacity='0'/></linearGradient><radialGradient id='gl'><stop offset='0' stop-color='%235a96ff' stop-opacity='.5'/><stop offset='1' stop-color='%235a96ff' stop-opacity='0'/></radialGradient></defs><rect width='180' height='180' rx='42' fill='url(%23b)'/><rect width='180' height='180' rx='42' fill='url(%23h)'/><circle cx='91' cy='88' r='62' fill='url(%23gl)'/><path d='M103 24 L60 98 L85 98 L79 154 L122 80 L97 80 Z' fill='%23ffffff'/></svg>";
     const manifest = {
       name: 'WattLab', short_name: 'WattLab',
       start_url: '.', display: 'standalone',
