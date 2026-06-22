@@ -31531,8 +31531,8 @@ function _renderProgChart(opts){
   const labels = [];
   const labelFor = (idx) => {
     const x=xF(idx), y=yF(vals[idx]);
-    const above = (y - PT) > 16;
-    const lyTxt = (above ? y - 10 : y + 14).toFixed(1);
+    // Valore SEMPRE sopra il pallino (clamp per non uscire dal bordo alto)
+    const lyTxt = Math.max(y - 10, 9).toFixed(1);
     const ta = idx===0 ? 'start' : idx===N-1 ? 'end' : 'middle';
     const lx = idx===0 ? Math.max(x, PL).toFixed(1) : idx===N-1 ? Math.min(x, W-PR).toFixed(1) : x.toFixed(1);
     labels.push(`<text x="${lx}" y="${lyTxt}" text-anchor="${ta}" font-size="9" font-weight="700" fill="${color}" font-family="Manrope,sans-serif" letter-spacing=".01em">${vals[idx]}${unit||''}</text>`);
